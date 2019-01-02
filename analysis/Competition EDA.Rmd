@@ -23,10 +23,10 @@ library(kableExtra)
 library(rjson)
 library(tidytext)
 
-train <- read_csv("Data/train.csv") %>%
+train <- read_csv("data/train.csv") %>%
   mutate(AdoptionSpeed = as.factor(AdoptionSpeed))
 
-test <- read_csv("Data/Test/test.csv")
+test <- read_csv("data/test/test.csv")
 
 state_labels <- read_csv("data/state_labels.csv")
 
