@@ -1,0 +1,93 @@
+  facet_wrap(~ Type, scales = "free", ncol = 1) +
+]0;~/Documents/Kaggle Pet Finder[?1034hJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$   facet_wrap(~ Type, scales = "free", ncol = 1) +
+bash: syntax error near unexpected token `~'
+]0;~/Documents/Kaggle Pet Finder[?1034hJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mkdir src/
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mkdir data
+mkdir: data: File exists
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ cd data
+]0;~/Documents/Kaggle Pet Finder/dataJasons-MacBook-Pro:data jasonzivkovic$ ls
+breed_labels.csv	color_labels.csv	state_labels.csv	test			test_sentiment		train.csv		train_sentiment
+]0;~/Documents/Kaggle Pet Finder/dataJasons-MacBook-Pro:data jasonzivkovic$ ls ..[K[K[K[K[Kcd ..
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mkdir submissions
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mkdir analysis
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mv Competition\ EDA.Rmd analysis
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mv feature\ engineering.R src
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mv submission_rf_baseline.csv submission
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mv submission submissions
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ mkdir M[Kmodels
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ e[Ktouch[K[K[K[K[Kecho README.md
+README.md
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ echo README.md[C[C[C[C[1P README.md[1P README.md[1P README.md[1P README.mdt README.mdo README.mdu README.mdc README.mdh README.md
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ open Re[KEADME.md 
+]0;~/Documents/Kaggle Pet Finder[?1034hJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ ls
+]0;~/Documents/Kaggle Pet FinderJasons-MacBook-Pro:Kaggle Pet Finder jasonzivkovic$ cd ..
+]0;~/DocumentsJasons-MacBook-Pro:Documents jasonzivkovic$ ls
+AFL						Kaggle Pet Finder				Stuff
+AFR Sentiments.R				Kate's assessments				TV Guide scrape.R
+Coursera					Movie Reviews Kaggle				TidyTuesday
+DataCamp-Projects				NBA-Injuries					WC2018-Twitter-Analysis
+DataCamp_Courses				NCAA Kaggle					Web Scraping
+DengAI: Predicting Disease Spread		NYT Articles Analysis				World Cup ELO Models
+Education					Pet Finder Kaggle				complete-python-bootcamp
+FiveThirtyEight Police Deaths Dataset		Practice					ggmap functions.R
+Home Credit Kaggle				PumpItUp_DrivenDataComp				twitter scrape.R
+Indonesia					R Practice
+Kaggle Elo Merchant Category Recommendation	Secret Twitter Keys.R
+]0;~/DocumentsJasons-MacBook-Pro:Documents jasonzivkovic$ cd Pet\ Finder\ Kaggle/
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ ls
+Pet Finder Kaggle.Rproj	README.md		analysis		data			models			src			submissions
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ open README.md 
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ git add[K[K[K[K[K[K[Kgit remote add origin https://github.com/JaseZiv/Pet-Finder-Kaggle.git
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ git poush[K[K[K[Kush -u origin master
+error: src refspec master does not match any.
+error: failed to push some refs to 'https://github.com/JaseZiv/Pet-Finder-Kaggle.git'
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ git status
+On branch master
+
+No commits yet
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+
+	[31m../.DS_Store[m
+	[31m../.Rapp.history[m
+	[31m../.Rhistory[m
+	[31m../.gitignore[m
+	[31m../.localized[m
+	[31m../AFL/[m
+	[31m../AFR Sentiments.R[m
+	[31m../Coursera/[m
+	[31m../DataCamp-Projects/[m
+	[31m../DataCamp_Courses/[m
+	[31m../DengAI: Predicting Disease Spread/[m
+	[31m../Education/[m
+	[31m../FiveThirtyEight Police Deaths Dataset/[m
+	[31m../Home Credit Kaggle/[m
+	[31m../Indonesia/[m
+	[31m../Kaggle Elo Merchant Category Recommendation/[m
+	[31m../Kate's assessments/[m
+	[31m../Movie Reviews Kaggle/[m
+	[31m../NBA-Injuries/[m
+	[31m../NCAA Kaggle/[m
+	[31m../NYT Articles Analysis/[m
+	[31m./[m
+	[31m../Practice/[m
+	[31m../PumpItUp_DrivenDataComp/[m
+	[31m../R Practice/[m
+	[31m../Secret Twitter Keys.R[m
+	[31m../Stuff/[m
+	[31m../TV Guide scrape.R[m
+	[31m../TidyTuesday/[m
+	[31m../WC2018-Twitter-Analysis/[m
+	[31m../Web Scraping/[m
+	[31m../World Cup ELO Models/[m
+	[31m../complete-python-bootcamp/[m
+	[31m../ggmap functions.R[m
+	[31m../twitter scrape.R[m
+
+nothing added to commit but untracked files present (use "git add" to track)
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ ls
+Pet Finder Kaggle.Rproj	README.md		analysis		data			models			src			submissions
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ git init
+Initialized empty Git repository in /Users/jasonzivkovic/Documents/Pet Finder Kaggle/.git/
+]0;~/Documents/Pet Finder KaggleJasons-MacBook-Pro:Pet Finder Kaggle jasonzivkovic$ git add .

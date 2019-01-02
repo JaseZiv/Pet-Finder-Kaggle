@@ -1,0 +1,82 @@
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(Matrix)
+library(MatrixModels)
+library(rjson)
+library(randomForest)
+
+train <- read_csv("data/train.csv") %>%
+  mutate(AdoptionSpeed = as.factor(AdoptionSpeed))
+
+test <- read_csv("data/test/test.csv")
+
+###############################################################################
+# The below function to read in the sentiment files comes from
+# Greg Murray's kernel: https://www.kaggle.com/gregmurray30/ordinal-logit/code
+###############################################################################
+
+# Extract sentiment scores for train and test
+
+filenames_train <- list.files("data/train_sentiment", full.names=TRUE)
+filenames_test <- list.files("data/test_sentiment", full.names=TRUE)
+
+get_scores <- function(fnames, n_char) {
+  sent_json <- list(length(fnames))
+  for( i in (1:length(fnames))){
+    temp_json <- fromJSON(file=fnames[i])
+    petid <- unlist(strsplit(substring(fnames[i], n_char), ".json"))
+    temp_pair <- list(petid, temp_json[4][[1]][[1]], temp_json[4][[1]][[2]])
+    sent_json[[i]] <- temp_pair
+  }
+  sent_df <- data.frame(matrix(unlist(sent_json), nrow=length(sent_json), byrow=T))
+  return(sent_df)
+}
+
+train_sent_df <- get_scores(filenames_train, 22)
+test_sent_df <- get_scores(filenames_test, 21)
+
+colnames(train_sent_df) <- c("PetID", "score", "magnitude")
+colnames(test_sent_df) <- c("PetID", "score", "magnitude")
+
+###############################################################################
+
+# create a variable to make splitting easier later on
+train$df <- "train"
+test$df <- "test"
+
+tr_index <- 1:nrow(train)
+
+train_test <- bind_rows(train, test) %>%
+  mutate(AdoptionSpeed = as.factor(AdoptionSpeed),
+         Type = as.factor(Type),
+         Age = log(Age + 1),
+         Fee = log(Fee + 1),
+         PureBreed = ifelse(Breed1 == 0 | Breed2 == 0, "Pure Breed", "Not Pure"),
+         HasName = ifelse(is.na(Name), "Yes", "No"),
+         QuantityGroup = fct_lump(factor(Quantity), n = 7),
+         DescriptionLength = str_length(Description))
+
+
+tr_te_sent <- rbind(train_sent_df, test_sent_df)
+
+tr_te_sent$PetID <- as.character(tr_te_sent$PetID)
+
+train_test <- train_test %>%
+  left_join(tr_te_sent, by = "PetID") %>%
+  mutate(score = as.numeric(score),
+         magnitude = as.numeric(magnitude),
+         score = ifelse(is.na(score), 0, score),
+         magnitude = ifelse(is.na(magnitude), 0, magnitude))
+
+train_test <- train_test %>%
+  mutate(score = log(score + 1) * magnitude) %>%
+  select(-magnitude)
+
+
+train <- train_test %>%
+  filter(df == "train")
+
+test <- train_test %>%
+  filter(df == "test")
