@@ -55,7 +55,9 @@ train_test <- bind_rows(train, test) %>%
          Breed2 = ifelse(Breed2 == Breed1, 0, Breed2),
          BreedType = ifelse(Breed1 == 307 | Breed2 == 307, "Mixed", ifelse(Breed1 == 0 | Breed2 == 0, "Pure", "Cross")),
          HasName = as.numeric(ifelse(is.na(Name), FALSE, TRUE)),
-         DescriptionLength = str_length(Description))
+         DescriptionLength = str_length(Description),
+         HealthRating = (Vaccinated + Dewormed + Sterilized + Health),
+         HealthVFM = Fee / HealthRating)
 
 train_test <- train_test %>%
   rowwise() %>%
