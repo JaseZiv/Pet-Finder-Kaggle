@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1546464029442.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2094418736",
+    "id" : "617C2F16",
+    "lastKnownWriteTime" : 1546479314,
+    "last_content_update" : 1546479315005,
+    "path" : "~/Documents/Pet Finder Kaggle/models/xgboost.R",
+    "project_path" : "models/xgboost.R",
+    "properties" : {
+        "cursorPosition" : "74,0",
+        "scrollLine" : "66",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

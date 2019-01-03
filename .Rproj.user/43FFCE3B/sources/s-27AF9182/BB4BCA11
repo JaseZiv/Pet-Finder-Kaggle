@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1546463979968.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "BB4BCA11",
+    "lastKnownWriteTime" : 1546466809,
+    "last_content_update" : 1546466809818,
+    "path" : "~/Documents/Pet Finder Kaggle/models/random_forest.R",
+    "project_path" : "models/random_forest.R",
+    "properties" : {
+        "cursorPosition" : "16,0",
+        "scrollLine" : "0",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

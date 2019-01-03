@@ -1,0 +1,638 @@
+---
+title: "Extensive Pet Finder EDA"
+author: "Jason Zivkovic"
+date: "30/12/2018"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: pygments
+    number_sections: yes
+    theme: spacelab
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(scales)
+library(kableExtra)
+library(rjson)
+library(tidytext)
+
+train <- read_csv("data/train.csv") %>%
+  mutate(AdoptionSpeed = as.factor(AdoptionSpeed))
+
+test <- read_csv("data/test/test.csv")
+
+state_labels <- read_csv("data/state_labels.csv")
+
+train$df <- "train"
+test$df <- "test"
+
+tr_index <- 1:nrow(train)
+
+train_test <- bind_rows(train, test) %>%
+  mutate(AdoptionSpeed = as.factor(AdoptionSpeed),
+         Type = as.factor(Type),
+         PureBreed = ifelse(Breed1 == 0 | Breed2 == 0, "Pure Breed", "Not Pure"),
+         HasName = ifelse(is.na(Name), "Yes", "No"),
+         QuantityGroup = fct_lump(factor(Quantity), n = 7),
+         DescriptionLength = str_length(Description))
+
+train_test <- train_test %>%
+  left_join(state_labels, by = c("State" = "StateID"))
+  
+```
+
+
+# Introduction
+
+This kernel aims to explore the features in the train and test data sets, primarily exploring the relationship between each variable and the adoption speeds of pets. In addition to the existing variables, new variables are also introduced. I will continue to add to this over the coming days, and then follow it up with some model building. 
+
+PetFinder.my has been Malaysia’s leading animal welfare platform since 2008, with a database of more than 150,000 animals. PetFinder collaborates closely with animal lovers, media, corporations, and global organizations to improve animal welfare.
+
+In this competition you will be developing algorithms to predict the adoptability of pets - specifically, how quickly is a pet adopted? If successful, they will be adapted into AI tools that will guide shelters and rescuers around the world on improving their pet profiles' appeal, reducing animal suffering and euthanization.
+
+
+## AdoptionSpeed
+The value is determined by how quickly, if at all, a pet is adopted. The values are determined in the following way: 
+
+* 0 - Pet was adopted on the same day as it was listed. 
+* 1 - Pet was adopted between 1 and 7 days (1st week) after being listed. 
+* 2 - Pet was adopted between 8 and 30 days (1st month) after being listed. 
+* 3 - Pet was adopted between 31 and 90 days (2nd & 3rd month) after being listed. 
+* 4 - No adoption after 100 days of being listed. (There are no pets in this dataset that waited between 90 and 100 days).
+
+
+# EDA
+
+## Missing Data
+
+```{r}
+colSums(is.na(train_test)) %>%
+  kable(caption = "Where are the missing variables") %>% kable_styling(bootstrap_options = c("striped", "hover","condensed", "responsive"))
+
+```
+
+When combining the train and test data sets, only the name has missing data (`AdoptionSpeed` is missing only because `test` doesn't have this variable).
+
+
+## Target Variable
+As we can see, the most common outcome is the animal isn't adopted after 100 days of being listed. The least frequent outcome for these animals is getting adopetd on the day of listing.
+
+```{r, warning=FALSE, message=FALSE}
+train %>%
+  ggplot(aes(x= AdoptionSpeed, fill = AdoptionSpeed)) +
+  geom_bar(stat = "count", color = "black") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank()) +
+  scale_y_continuous(labels = comma) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme(legend.position = "top")
+```
+
+## Do different States have different adoption times
+
+Selangor and Kuala Lumpur are by far the two highest states with pet adoptions.
+
+```{r}
+train_test %>%
+  ggplot(aes(x= StateName)) +
+  geom_bar(stat = "count", fill = "black") +
+  theme_minimal() +
+  coord_flip() +
+  theme(axis.title.y = element_blank()) +
+  scale_y_continuous(labels = comma) +
+  facet_wrap(~ df)
+```
+
+There is a difference in adoption speeds between the different states. If we just look at Selangor vs Kuala Lumpur, Selangor has slightly faster adoptions. Selangor also has the least proportion of pets left unclaimed after 100 days.
+
+```{r}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= StateName, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  coord_flip()
+```
+
+
+
+## Does a pet's missing name create differences in adoption times?
+
+There doesn't appear to be a relationship between whether the pet has a name and the adoption speed. Will be interesting to see if this becomes a feature in the model or not.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= HasName, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu")
+
+```
+
+
+## Type of animal
+Interestingly, there are more cats in the test set, while there are considerably more dogs in the training set.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Type, fill = factor(Type))) +
+  geom_bar(stat = "count", color = "black") +
+  labs(x= "Type (1 = Dog, 2 = Cat)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("steelblue", "orange")) +
+  scale_y_continuous(labels = comma) +
+  theme(strip.text = element_text(face = "bold"), legend.position = "none", axis.title.y = element_blank()) +
+  facet_wrap(~ df)
+```
+
+## Is there a difference between how quickly cats and dogs get adopted?
+Cats appear to have been adopted at a quicker rate than dogs in the train set, with a greater proportion of cats being adopted on the same day, or within the first week than that of dogs. Th proportion of dogs that were not adopted was slightly higher than cats.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  ggplot(aes(x= Type, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  labs(x= "Type (1 = Dog, 2 = Cat)", fill = "Adoption \nSpeed") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme(strip.text = element_text(face = "bold"), axis.title.y = element_blank())
+```
+
+
+## Does age play a role in how quick adoption occurs?
+It appears dogs are slightly older than cats on average, however this is caused by some outliers in the data. Using median as a measure of centrality, the age median age for both cats and dogs is 3 months.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Age, fill = Type)) +
+  geom_density(alpha = 0.5, adjust = 2) +
+  labs(fill= "Type (1 = Dog, 2 = Cat)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("steelblue", "orange")) +
+  theme(strip.text = element_text(face = "bold"), legend.position = "bottom", axis.title.y = element_blank()) +
+  facet_wrap(~ df)
+
+
+by(train_test$Age, train_test$Type, summary)
+
+```
+
+
+There does appear to be a weak association between the age of the animal and the adoption speed, with younger animals having a better chance  of being adopted, both cats and dogs.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  ggplot(aes(x= AdoptionSpeed, y= Age, fill = Type)) +
+  geom_boxplot() +
+  labs(fill= "Type (1 = Dog, 2 = Cat)") +
+  scale_fill_manual(values = c("steelblue", "orange")) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"), legend.position = "bottom", axis.title.y = element_blank()) +
+  facet_wrap(~ Type, scales = "free", ncol = 1) +
+  coord_flip()
+
+by(train_test$Age, train_test$AdoptionSpeed, summary)
+```
+
+## Do breeds play a role in adoption speeds?
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  group_by(Type, Breed1) %>%
+  summarise(CountOfBreed = n()) %>% arrange(desc(CountOfBreed)) %>% head(10)
+```
+
+Most of the animals in both the train and test data sets are *pure breeds* (meaning they only have on breed).
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= PureBreed)) +
+  geom_bar(stat = "count", fill = "black") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank()) +
+  scale_y_continuous(labels = comma) +
+  facet_wrap(~ df)
+```
+
+Non pure breeds appear to be adopted somewhat faster than pure breeds.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  ggplot(aes(x= PureBreed, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") 
+```
+
+
+## Gender and adoption speeds
+
+MMale pets appear to be adopted slightly faster than female pets. The mixed pets is interesting, and upon further inspection of the data, these are where there are multiple pets in the profile.
+
+```{r, warning=FALSE, message=FALSE}
+train %>%
+  ggplot(aes(x= Gender, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  labs(x= "Gender (1 = Male, 2 = Female, 3 = Mixed)") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Quantity on offer and adoption speeds
+
+By far the most frequent number of pets in the profile for the train and test sets is one, and then a large drop-off to the second highest (2 pets in the profile).
+
+To reduce the complexity, I will create a new grouped variable for the quantity, with the top 7 appearing as is, while the rest are lumped in a "other" level.
+
+There appears to be somewhat of a relationship between the quantity and adoption speeds - the lower levels of quantity appear to be adopted slightly quicker.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  count(QuantityGroup) %>%
+  arrange(desc(n)) %>%
+  rename(NumberOfPets = n) %>%
+  mutate(NumberOfPets = comma(NumberOfPets)) %>%
+  kable(caption = "The highest quantities of pets in each listing") %>% kable_styling(bootstrap_options = c("striped", "hover","condensed", "responsive"))
+
+
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= QuantityGroup, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Does the maturity size influence adoption speeds
+
+The majority of pets in the train and test sets are medium size at full maturity. Very few are extra large at full maturity
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= MaturitySize)) +
+  geom_bar(stat = "count", fill = "black") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
+```
+
+
+Smaller dogs appear to be  adopted quicker than larger dogs. The relationship isn't as pronounced for cats.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= MaturitySize, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top") +
+  facet_wrap(~ Type)
+```
+
+
+## Vaccinated pets and adoption speeds
+
+Most pets in the train and test data sets have not been vaccinated. Being unsure whether the pet was vaccinated is the least frequent.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Vaccinated)) +
+  geom_bar(stat = "count", fill = "black") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
+```
+
+
+Non-vaccinated pets surprisingly tend to be adopted slightly quicker than both vaccinated and unknown.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= Vaccinated, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Dewormed and adoption speeds
+
+Most pets in the train and test data sets have been dewormed. Being unsure whether the pet was dewormed is the least frequent.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Dewormed)) +
+  geom_bar(stat = "count", fill = "black") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
+```
+
+
+Surprisingly again, pets that haven't been dewormed tend to be adopted slightly quicker than both dewormed and unknown.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= Dewormed, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Sterilised and pets and adoption speeds
+
+Most pets in the train and test data sets have not been sterilised Being unsure whether the pet was sterilised is the least frequent.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Sterilized)) +
+  geom_bar(stat = "count", fill = "black") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
+```
+
+
+Non-sterilised pets again surprisingly tend to be adopted slightly quicker than both sterilised and unknown.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= Sterilized, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Health condition of pets and adoption speeds
+
+The vast majority of pets are healthy. Only `sum(train_test$Health == 3)` pets in the data set have a serious injury.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x= Health)) +
+  geom_bar(stat = "count", fill = "black") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(axis.title.y = element_blank())
+```
+
+
+Pets with a minor injury tend to be adopted slightly quicker than both healthy and seriously injured pets.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= Health, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Does the fee for the pet influence adoption speeds?
+
+By far, pets are available for free.  
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  ggplot(aes(x = Fee)) +
+  geom_histogram(fill = "lightgrey", color = "black") +
+  theme_minimal()
+```
+
+This is also confirmed with the below, as are the other top prices for pets.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>% 
+  mutate(Fee = fct_lump(factor(Fee), n = 10)) %>% 
+  count(Fee) %>% arrange(desc(n)) %>%
+  rename(NumberOfPets = n) %>%
+  mutate(NumberOfPets = comma(NumberOfPets)) %>%
+  kable(caption = "The most frequent fee for pets") %>% kable_styling(bootstrap_options = c("striped", "hover","condensed", "responsive"))
+
+```
+
+
+Pets with a price of 20 have been adopted slightly quicker than any other price.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  mutate(Fee = fct_lump(factor(Fee), n = 10)) %>%
+  ggplot(aes(x= Fee, fill = AdoptionSpeed)) +
+  geom_bar(position = "fill", color = "black") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(axis.title.y = element_blank(), legend.position = "top")
+```
+
+
+## Do more or less photos help with adoption speeds?
+
+There doesn't appear to be a great difference between the number of photos for adoption speeds of 1, 2 and 3, however there appears to be more photos for pets with an adoption speed between 31 and 90 days, and less photos for pets not adopted after 100 days of listing.
+
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= AdoptionSpeed, y= PhotoAmt, fill = AdoptionSpeed)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+## Does the length of description affect the adoption 
+
+It appears that quicker adoption speeds have less words in the description.
+```{r, warning=FALSE, message=FALSE}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x = AdoptionSpeed, y= DescriptionLength, fill = AdoptionSpeed)) +
+  geom_boxplot()  +
+  scale_fill_brewer(palette="YlGnBu") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  coord_flip()
+```
+
+
+# Sentiment Analysis
+
+```{r}
+###############################################################################
+# The below function to read in the sentiment files comes from
+# Greg Murray's kernel: https://www.kaggle.com/gregmurray30/ordinal-logit/code
+###############################################################################
+
+# Extract sentiment scores for train and test
+
+filenames_train <- list.files("data/train_sentiment", full.names=TRUE)
+filenames_test <- list.files("data/test_sentiment", full.names=TRUE)
+
+get_scores <- function(fnames, n_char) {
+  sent_json <- list(length(fnames))
+  for( i in (1:length(fnames))){
+    temp_json <- fromJSON(file=fnames[i])
+    petid <- unlist(strsplit(substring(fnames[i], n_char), ".json"))
+    temp_pair <- list(petid, temp_json[4][[1]][[1]], temp_json[4][[1]][[2]])
+    sent_json[[i]] <- temp_pair
+  }
+  sent_df <- data.frame(matrix(unlist(sent_json), nrow=length(sent_json), byrow=T))
+  return(sent_df)
+}
+
+train_sent_df <- get_scores(filenames_train, 22)
+test_sent_df <- get_scores(filenames_test, 21)
+
+colnames(train_sent_df) <- c("PetID", "score", "magnitude")
+colnames(test_sent_df) <- c("PetID", "score", "magnitude")
+###############################################################################
+
+
+tr_te_sent <- rbind(train_sent_df, test_sent_df)
+
+tr_te_sent$PetID <- as.character(tr_te_sent$PetID)
+
+train_test <- train_test %>%
+  left_join(tr_te_sent, by = "PetID") %>%
+  mutate(score = as.numeric(score),
+         magnitude = as.numeric(magnitude),
+         score = ifelse(is.na(score), 0, score),
+         magnitude = ifelse(is.na(magnitude), 0, magnitude))
+
+```
+
+## Sentiment score for each Adoption Speed
+
+At first glance, sentiment scores at the lower end (<50) tend to occur more frequently as the `AdoptionSpeed` gets longer. Additionally, the sentiment scores for `AdoptionSpeed = 0` appear to have less of a clear divide between  high and low scores (the dips between ~45-55).  
+```{r}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= score, fill = AdoptionSpeed)) +
+  geom_density() +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  labs(x= "Score") +
+  facet_wrap(~ AdoptionSpeed) +
+  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
+  
+```
+
+Splitting the classifying sentiment scores either below or above 50 and then plotting these, the differences become somewhat more pronounced. There does appear to be slightly higher scores for quicker adoption speeds.
+
+```{r}
+train_test %>%
+  filter(df == "train") %>%
+  mutate(ScoreBelow50 = ifelse(score <= 50, "Below 50", "Over 50")) %>%
+  ggplot(aes(x= score, fill = AdoptionSpeed)) +
+  geom_density() +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  labs(x= "Score") +
+  facet_grid(AdoptionSpeed ~ ScoreBelow50, scales = "free") +
+  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
+  
+```
+
+## Magnitude and different Adoption Speeds
+
+```{r}
+train_test %>%
+  filter(df == "train") %>%
+  ggplot(aes(x= magnitude, fill = AdoptionSpeed)) +
+  geom_density() +
+  scale_fill_brewer(palette="YlGnBu") +
+  theme_minimal() +
+  labs(x= "Magnitude") +
+  facet_wrap(~ AdoptionSpeed) +
+  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
+  
+```
+
+
+
+```{r}
+train_test_unnested <- train_test %>%
+  unnest_tokens(word, Description) %>%
+  anti_join(stop_words)
+
+
+train_test_unnested %>%
+ filter(df == "train") %>%
+ group_by(AdoptionSpeed) %>%
+ count(word, AdoptionSpeed, sort = T) %>%
+ slice(seq_len(20)) %>%
+ ungroup() %>%
+ ggplot(aes(x= word, y= n)) +
+ geom_bar(stat = "identity") +
+ coord_flip() +
+ facet_wrap(~ AdoptionSpeed, scales = "free")
+
+
+
+
+
+
+
+
+
+
+top_words_plot <- train_test_unnested %>%
+  filter(df == "train") %>%
+  group_by(AdoptionSpeed) %>%
+  count(word, AdoptionSpeed, sort = T) %>%
+  slice(seq_len(30)) %>%
+  ungroup() %>%
+  arrange(AdoptionSpeed, n) %>%
+  mutate(row = row_number())
+  
+top_words_plot %>%
+  ggplot(aes(x= row, y= n)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(  # This handles replacement of row 
+    breaks = top_words_plot$row, # notice need to reuse data frame
+    labels = top_words_plot$word) +
+  coord_flip() +
+  facet_wrap(~ AdoptionSpeed, scales = "free", drop = TRUE)
+  
+
+```
+
+
+
+
+
+
+
+
+
+
+
