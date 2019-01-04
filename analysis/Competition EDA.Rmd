@@ -578,59 +578,133 @@ train_test %>%
 ```
 
 
+# Listing Description Text Analysis
 
-```{r}
-train_test_unnested <- train_test %>%
+There is a long tailed distribution in the proportion of total words made up by the individual words (term frequency)... probably those words like "and", "the", etc.
+
+This distribution appears to be the same for each of the different levels of adoption speed.
+
+```{r, message=FALSE, warning=FALSE}
+pet_words <- train_test %>%
   unnest_tokens(word, Description) %>%
-  anti_join(stop_words)
+  count(AdoptionSpeed, word, sort = TRUE) %>%
+  ungroup()
 
+total_words <- pet_words %>% 
+  group_by(AdoptionSpeed) %>% 
+  summarize(total = sum(n))
 
-train_test_unnested %>%
- filter(df == "train") %>%
- group_by(AdoptionSpeed) %>%
- count(word, AdoptionSpeed, sort = T) %>%
- slice(seq_len(20)) %>%
- ungroup() %>%
- ggplot(aes(x= word, y= n)) +
- geom_bar(stat = "identity") +
- coord_flip() +
- facet_wrap(~ AdoptionSpeed, scales = "free")
+pet_words <- left_join(pet_words, total_words)
 
-
-
-
-
-
-
-
-
-
-top_words_plot <- train_test_unnested %>%
-  filter(df == "train") %>%
-  group_by(AdoptionSpeed) %>%
-  count(word, AdoptionSpeed, sort = T) %>%
-  slice(seq_len(30)) %>%
-  ungroup() %>%
-  arrange(AdoptionSpeed, n) %>%
-  mutate(row = row_number())
-  
-top_words_plot %>%
-  ggplot(aes(x= row, y= n)) +
-  geom_bar(stat = "identity") +
-  scale_x_continuous(  # This handles replacement of row 
-    breaks = top_words_plot$row, # notice need to reuse data frame
-    labels = top_words_plot$word) +
-  coord_flip() +
-  facet_wrap(~ AdoptionSpeed, scales = "free", drop = TRUE)
-  
-
+pet_words %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  ggplot(aes(x= n/total, fill = AdoptionSpeed)) +
+  geom_histogram(show.legend = FALSE, color = "black") +
+  xlim(NA, 0.0009) +
+  scale_fill_brewer(palette="YlGnBu") +
+  labs(x = "Count of Word / Total Words", y = NULL) +
+  facet_wrap(~AdoptionSpeed, ncol = 2, scales = "free") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
 ```
 
 
+## Term Frequency Inverse Document Frequency (TF-IDF)
+
+In a document, there are words that appear often (*Term Frequency (TF)*) but may not be important... think "the", "and", "is", etc. These could be excluded from the analysis using `anti_join` and `stopwords`, but there is a risk that some of these common words could be important and would be lost from our analysis.
+
+To combat this, we can look at a term’s inverse document frequency (idf), which decreases the weight for commonly used words and increases the weight for words that are not used very much in a collection of documents. This can be combined with term frequency to calculate a term’s `tf-idf` (the two quantities multiplied together), the frequency of a term adjusted for how rarely it is used (source: https://www.tidytextmining.com/tfidf.html#term-frequency-in-jane-austens-novels).
+
+Interestingly, the vast majority of the top 15 most important words for each adoption speed class seem to be names of the pets.
+
+```{r, warning=FALSE, message=FALSE}
+pet_words <- pet_words %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  bind_tf_idf(word, AdoptionSpeed, n)
+
+pet_words %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>% 
+  group_by(AdoptionSpeed) %>% 
+  top_n(15) %>% 
+  ungroup %>%
+  ggplot(aes(x= reorder(word, tf_idf), y= tf_idf, fill = AdoptionSpeed)) +
+  geom_col(show.legend = FALSE, color = "black") +
+  scale_fill_brewer(palette="YlGnBu") +
+  scale_y_continuous(labels = comma) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~AdoptionSpeed, ncol = 2, scales = "free") +
+  coord_flip() +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
+
+```
+
+## Bi-Grams
+
+The bigram distribution below displays the same characteristics as that of the single words above.
+```{r, warning=FALSE, message=FALSE}
+pet_bigrams <- train_test %>%
+  unnest_tokens(bigram, Description, token = "ngrams", n = 2) %>%
+  count(AdoptionSpeed, bigram, sort = TRUE) %>%
+  ungroup()
+
+total_bigrams <- pet_bigrams %>% 
+  group_by(AdoptionSpeed) %>% 
+  summarize(total = sum(n))
+
+pet_bigrams <- left_join(pet_bigrams, total_bigrams)
+
+pet_bigrams %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  ggplot(aes(x= n/total, fill = AdoptionSpeed)) +
+  geom_histogram(show.legend = FALSE, color = "black") +
+  xlim(NA, 0.0009) +
+  scale_fill_brewer(palette="YlGnBu") +
+  labs(x = "Count of Word / Total Words", y = NULL) +
+  facet_wrap(~AdoptionSpeed, ncol = 2, scales = "free") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+## Bi-Grams TF-IDF
+
+using bigrams is now a bit more interesting, with references to forms of the word "rescue" being made for `AdoptionSpeed = 4`. Variants of "Entitle" appear more than once in the top 15 bigrams of `AdoptionSpeed = 0`.
+
+```{r, warning=FALSE, message=FALSE, fig.height=8}
+pet_bigrams <- train_test %>%
+  unnest_tokens(bigram, Description, token = "ngrams", n = 2) %>%
+  count(AdoptionSpeed, bigram, sort = TRUE) %>%
+  ungroup()
+
+total_bigrams <- pet_bigrams %>% 
+  group_by(AdoptionSpeed) %>% 
+  summarize(total = sum(n))
+
+pet_bigrams <- left_join(pet_bigrams, total_bigrams)
 
 
+pet_bigrams <- pet_bigrams %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  bind_tf_idf(bigram, AdoptionSpeed, n)
 
+pet_bigrams %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(bigram, levels = rev(unique(bigram)))) %>% 
+  group_by(AdoptionSpeed) %>% 
+  top_n(15) %>% 
+  ungroup %>%
+  ggplot(aes(x= reorder(bigram, tf_idf), y= tf_idf, fill = AdoptionSpeed)) +
+  geom_col(show.legend = FALSE, color = "black") +
+  scale_fill_brewer(palette="YlGnBu") +
+  scale_y_continuous(labels = comma) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~AdoptionSpeed, ncol = 2, scales = "free") +
+  coord_flip() +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
 
+```
 
 
 
