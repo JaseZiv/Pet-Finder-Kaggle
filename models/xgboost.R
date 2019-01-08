@@ -49,6 +49,9 @@ colnames(test_sent_df) <- c("PetID", "score", "magnitude")
 train$df <- "train"
 test$df <- "test"
 
+train_index <- 1:nrow(train)
+test_index <- 1:nrow(test)
+
 train_test <- bind_rows(train, test) %>%
   mutate(AdoptionSpeed = as.factor(AdoptionSpeed),
          Type = ifelse(Type == 1, "Dog", "Cat"),
@@ -59,9 +62,25 @@ train_test <- bind_rows(train, test) %>%
          HealthRating = (Vaccinated + Dewormed + Sterilized + Health),
          HealthVFM = Fee / HealthRating)
 
+
+train_test <- train_test %>%
+  mutate(DescriptionCharacterLength = str_length(Description),
+         DescriptionSentencesCount = str_count(Description, "[[:alnum:] ][.!?]"),
+         DescriptionWordCount = str_count(Description, "[[:alpha:][-]]+"),
+         DescriptionCapitalsCount = str_count(Description, "[A-Z]"),
+         DescriptionLettersCount = str_count(Description, "[A-Za-z]"),
+         DescriptionPunctuationCount = str_count(Description, "[[:punct:]]"),
+         DescriptionExclamationCount = str_count(Description, fixed("!")),
+         DescriptionQuestionCount = str_count(Description, fixed("?")),
+         DescriptionDigitsCount = str_count(Description, "[[:digit:]]"),
+         DescriptionDistinctWordsCount = lengths(lapply(strsplit(Description, split = ' '), unique)),
+         DescriptionLexicalDensity = DescriptionDistinctWordsCount / DescriptionWordCount)
+
+
+
 train_test <- train_test %>%
   rowwise() %>%
-  mutate(NumColours = sum(Color1 !=0, Color2 !=0, Color3 != 0))
+  mutate(NumColours = sum(Color1 !=0, Color2 !=0, Color3 != 0)) %>% ungroup()
 
 
 train_test_sent <- rbind(train_sent_df, test_sent_df)
@@ -70,8 +89,8 @@ train_test_sent$PetID <- as.character(train_test_sent$PetID)
 
 train_test <- train_test %>%
   left_join(train_test_sent, by = "PetID") %>%
-  mutate(score = as.numeric(score),
-         magnitude = as.numeric(magnitude),
+  mutate(score = as.numeric(as.character(score)),
+         magnitude = as.numeric(as.character(magnitude)),
          score = ifelse(is.na(score), 0, score),
          magnitude = ifelse(is.na(magnitude), 0, magnitude))
 
@@ -79,41 +98,44 @@ train_test <- train_test %>%
 #   mutate(score = log(score + 1) * magnitude) %>%
 #   select(-magnitude)
 
+rescuer_count <- train_test %>%
+  group_by(RescuerID) %>%
+  summarise(RescuerCount = n()) %>% ungroup()
 
-# drop variables that wont be used in the model
 train_test <- train_test %>%
-  select(-Name, -RescuerID, -Description)
+  left_join(rescuer_count, by = "RescuerID")
 
-
-# split data back out into train and test sets
-train <- train_test %>%
-  filter(df == "train") %>%
-  select(-df)
-
-test <- train_test %>%
-  filter(df == "test") %>%
-  select(-df, -AdoptionSpeed)
 
 train_petID <- train$PetID
 test_petID <- test$PetID
 
 AdoptionSpeed_labels <- train$AdoptionSpeed
 
-train$AdoptionSpeed <- NULL
+train_test$AdoptionSpeed <- NULL
 
-train$PetID <- NULL
-test$PetID <- NULL
+train_test$PetID <- NULL
+
+
+# # drop variables that wont be used in the model
+# train_test <- train_test %>%
+#   select(-Name, -Description, -RescuerID, -df)
+
+
+
 
 # one-hot encode categorical variables and then join back to numeric training variables
-train_num <- train %>%
+train_test_num <- train_test %>%
   select_if(is.numeric)
 
-train_type <- model.matrix(~ Type-1, train)
+train_test_type <- model.matrix(~ Type-1, train_test)
 
-breed_type <- model.matrix(~ BreedType-1, train)
+breed_type_train_test <- model.matrix(~ BreedType-1, train_test)
 
+train_test_matrix <- cbind(train_test_num, train_test_type, breed_type_train_test) %>% as.matrix()
 
-train_matrix <- cbind(train_num, train_type, breed_type) %>% as.matrix()
+train_matrix <- train_test_matrix[train_index,]
+
+test_matrix <- train_test_matrix[-train_index,]
 
 set.seed(1356)
 
@@ -141,12 +163,12 @@ evalerror <- function(preds, dtrain) {
 
 model <- xgboost(data = dtrain, # the data   
                  max.depth = 3, # the maximum depth of each decision tree
-                 nround = 100, # number of boosting rounds
+                 nround = 300, # number of boosting rounds
                  early_stopping_rounds = 30, # if we dont see an improvement in this many rounds, stop # max number of boosting iterations
                  objective = "multi:softmax",
                  eval_metric = evalerror,
                  num_class = 6,
-                 gamma = 1, maximize = TRUE)  # the objective function
+                 gamma = 1, maximize = TRUE, print_every_n = 10)  # the objective function
 
 
 pred <- predict(model, dtest) -1
@@ -158,26 +180,16 @@ importance_matrix <- xgb.importance(colnames(train_matrix), model = model)
 
 xgb.plot.importance(importance_matrix)
 
-## eval metric: 0.2585793
+## eval metric: 0.3060472
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Prepare Test data for prediction
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# one-hot encode categorical variables and then join back to numeric training variables
-test_num <- test %>%
-  select_if(is.numeric)
-
-test_type <- model.matrix(~ Type-1, test)
-
-breed_type_test <- model.matrix(~ BreedType-1, test)
-
-
-test_matrix <- cbind(test_num, test_type, breed_type_test) %>% as.matrix()
-
 test_for_sub <- xgb.DMatrix(data = test_matrix)
 
 sub_pred <- predict(model, test_for_sub) -1
+
 
 as.data.frame(cbind(PetID = test_petID, AdoptionSpeed = sub_pred)) %>%
   write.csv("submission.csv", row.names = F)
