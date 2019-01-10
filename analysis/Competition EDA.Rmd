@@ -483,6 +483,42 @@ train_test %>%
   coord_flip()
 ```
 
+## Other Description Metadata analysis
+
+The below faceted density plots plot the values for 11 variables that were preprocessed from the `Description` variable.
+
+In my best performing gradient boosted model, `DescriptionLexicalDensity` was a significant variable. *Lexical Density* was used in this DataCamp article https://www.datacamp.com/community/tutorials/R-nlp-machine-learning, and was described as being an indicator of word repetition; as lexical density increases, repetition decreases. 
+
+It appears that as lexical density decreases (more words being repeated), pets are adopted at slightly slower rates.
+```{r, warning=FALSE, message=FALSE, fig.width=11, fig.height=9}
+train_test <- train_test %>%
+  mutate(DescriptionCharacterLength = str_length(Description),
+         DescriptionSentencesCount = str_count(Description, "[[:alnum:] ][.!?]"),
+         DescriptionWordCount = str_count(Description, "[[:alpha:][-]]+"),
+         DescriptionCapitalsCount = str_count(Description, "[A-Z]"),
+         DescriptionLettersCount = str_count(Description, "[A-Za-z]"),
+         DescriptionPunctuationCount = str_count(Description, "[[:punct:]]"),
+         DescriptionExclamationCount = str_count(Description, fixed("!")),
+         DescriptionQuestionCount = str_count(Description, fixed("?")),
+         DescriptionDigitsCount = str_count(Description, "[[:digit:]]"),
+         DescriptionDistinctWordsCount = lengths(lapply(strsplit(Description, split = ' '), unique)),
+         DescriptionLexicalDensity = DescriptionDistinctWordsCount / DescriptionWordCount)
+
+
+train_test %>%
+  filter(!is.na(AdoptionSpeed)) %>%
+  select(AdoptionSpeed, starts_with("Description"), -Description) %>%
+  gather(key = "Variable", value = "value", -AdoptionSpeed) %>%
+  ggplot(aes(x= log(value +1), fill = AdoptionSpeed)) +
+  geom_density(alpha = 0.4) +
+  labs(title = "Description Metadata Analysis", subtitle = "All metrics are counts except for 'DescriptionLexicalDensity'", 
+       x = "Log transformed metric") +
+  scale_fill_brewer(palette="YlGnBu") +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
+```
+
 
 # Sentiment Analysis
 
