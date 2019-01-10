@@ -94,6 +94,7 @@ train_test <- train_test %>%
          score = ifelse(is.na(score), 0, score),
          magnitude = ifelse(is.na(magnitude), 0, magnitude))
 
+
 # train_test <- train_test %>%
 #   mutate(score = log(score + 1) * magnitude) %>%
 #   select(-magnitude)
@@ -133,6 +134,23 @@ breed_type_train_test <- model.matrix(~ BreedType-1, train_test)
 
 train_test_matrix <- cbind(train_test_num, train_test_type, breed_type_train_test) %>% as.matrix()
 
+
+# multiply all columns by each other, first adding 1 to each column before multiplying
+a <- train_test_matrix %>% data.frame()
+
+res <- cbind(a^2, do.call(cbind,combn(colnames(a), 2, 
+                                      FUN= function(x) list(a[x[1]] * a[x[2]]))))
+colnames(res)[-(seq_len(ncol(a)))] <-  combn(colnames(a), 2, 
+                                             FUN = paste, collapse=":")
+
+res <- as.matrix(res)
+
+# Join back to the full matrix for splitting and training
+train_test_matrix <- cbind(train_test_matrix, res)
+
+dim(train_test_matrix)
+
+# split back out to train and test sets
 train_matrix <- train_test_matrix[train_index,]
 
 test_matrix <- train_test_matrix[-train_index,]
@@ -154,21 +172,23 @@ test_labels <- AdoptionSpeed_labels[-(1:numberOfTrainingSamples)]
 dtrain <- xgb.DMatrix(data = train_data, label= train_labels)
 dtest <- xgb.DMatrix(data = test_data, label= test_labels)
 
-
+# function to use as metric while training model
 evalerror <- function(preds, dtrain) {
   labels <- getinfo(dtrain, "label")
   err <- ScoreQuadraticWeightedKappa(labels,round(preds))
   return(list(metric = "kappa", value = err))}
 
-
+#~~~~~~~~~~~~~~~~~~~~~~~~~
+# Model Training
+#~~~~~~~~~~~~~~~~~~~~~~~~~
 model <- xgboost(data = dtrain, # the data   
                  max.depth = 3, # the maximum depth of each decision tree
-                 nround = 300, # number of boosting rounds
+                 nround = 1000, # number of boosting rounds
                  early_stopping_rounds = 30, # if we dont see an improvement in this many rounds, stop # max number of boosting iterations
                  objective = "multi:softmax",
                  eval_metric = evalerror,
                  num_class = 6,
-                 gamma = 1, maximize = TRUE, print_every_n = 10)  # the objective function
+                 gamma = 1, maximize = TRUE, print_every_n = 25)  # the objective function
 
 
 pred <- predict(model, dtest) -1
@@ -178,9 +198,9 @@ evalerror(pred, dtest)
 
 importance_matrix <- xgb.importance(colnames(train_matrix), model = model)
 
-xgb.plot.importance(importance_matrix)
+xgb.plot.importance(importance_matrix[1:30])
 
-## eval metric: 0.3060472
+## eval metric: 0.3045839, kaggle leaderboard score: 0.340
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Prepare Test data for prediction
