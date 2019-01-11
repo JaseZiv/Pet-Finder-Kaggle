@@ -177,7 +177,7 @@ evalerror <- function(preds, dtrain) {
 # Model Training
 #~~~~~~~~~~~~~~~~~~~~~~~~~
 
-## Best iteration: val-kappa:0.371849, kaggle leaderboard score: 0.343
+## Best iteration: val-kappa:0.366499, kaggle leaderboard score: 0.348
 
 p <- list(objective = "multi:softmax",
           eval_metric = evalerror,
