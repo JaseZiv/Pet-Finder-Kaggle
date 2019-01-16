@@ -559,8 +559,8 @@ tr_te_sent$PetID <- as.character(tr_te_sent$PetID)
 
 train_test <- train_test %>%
   left_join(tr_te_sent, by = "PetID") %>%
-  mutate(score = as.numeric(score),
-         magnitude = as.numeric(magnitude),
+  mutate(score = as.numeric(as.character(score)),
+         magnitude = as.numeric(as.character(magnitude)),
          score = ifelse(is.na(score), 0, score),
          magnitude = ifelse(is.na(magnitude), 0, magnitude))
 
@@ -568,48 +568,40 @@ train_test <- train_test %>%
 
 ## Sentiment score for each Adoption Speed
 
-At first glance, sentiment scores at the lower end (<50) tend to occur more frequently as the `AdoptionSpeed` gets longer. Additionally, the sentiment scores for `AdoptionSpeed = 0` appear to have less of a clear divide between  high and low scores (the dips between ~45-55).  
-```{r}
-train_test %>%
-  filter(df == "train") %>%
-  ggplot(aes(x= score, fill = AdoptionSpeed)) +
-  geom_density() +
-  scale_fill_brewer(palette="YlGnBu") +
-  theme_minimal() +
-  labs(x= "Score") +
-  facet_wrap(~ AdoptionSpeed) +
-  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
-  
-```
-
-Splitting the classifying sentiment scores either below or above 50 and then plotting these, the differences become somewhat more pronounced. There does appear to be slightly higher scores for quicker adoption speeds.
+Where `AdoptionSpeed = 0`, sentiment scores are lower than for any other adoption speed. Interestingly, for `AdoptionSpeed = 4`, sentiment scores tend to be slightly lower that any of the other adoption speeds other than 0. The summary statistics below comfirm this.
 
 ```{r}
 train_test %>%
   filter(df == "train") %>%
-  mutate(ScoreBelow50 = ifelse(score <= 50, "Below 50", "Over 50")) %>%
-  ggplot(aes(x= score, fill = AdoptionSpeed)) +
-  geom_density() +
-  scale_fill_brewer(palette="YlGnBu") +
+  ggplot(aes(x= AdoptionSpeed, y= score, colour = AdoptionSpeed)) +
+  #geom_boxplot() +
+  geom_jitter(alpha = 0.5)+
+  scale_colour_brewer(palette="YlGnBu") +
   theme_minimal() +
-  labs(x= "Score") +
-  facet_grid(AdoptionSpeed ~ ScoreBelow50, scales = "free") +
-  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
-  
+  labs(x = "Adoption Speed", y= "Score") +
+  theme(legend.position = "none")
+
+by(train_test$score, train_test$AdoptionSpeed, summary)
+
 ```
+
 
 ## Magnitude and different Adoption Speeds
+
+There doesn't appear to be a big difference between the adoption speeds with regards to the sentiment magnitude. If anything, `AdoptionSpeed = 4` may be slightly higher than for the other speeds.
 
 ```{r}
 train_test %>%
   filter(df == "train") %>%
   ggplot(aes(x= magnitude, fill = AdoptionSpeed)) +
-  geom_density() +
+  geom_density(alpha = 0.5) +
   scale_fill_brewer(palette="YlGnBu") +
   theme_minimal() +
   labs(x= "Magnitude") +
-  facet_wrap(~ AdoptionSpeed) +
-  theme(legend.position = "none", axis.title.y = element_blank(), strip.text = element_text(face = "bold", size = 10))
+  theme(axis.title.y = element_blank())
+
+
+by(train_test$magnitude, train_test$AdoptionSpeed, summary)
   
 ```
 
