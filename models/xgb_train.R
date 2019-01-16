@@ -101,7 +101,20 @@ train_test <- train_test %>%
 
 rescuer_count <- train_test %>%
   group_by(RescuerID) %>%
-  summarise(RescuerCount = n()) %>% ungroup()
+  summarise(RescuerCount = n()) %>% 
+  ungroup()
+
+fn <- funs(mean, sd, min, max, sum, .args = list(na.rm = TRUE))
+
+rescuer_data <- train_test %>%
+  group_by(RescuerID) %>%
+  select_if(is.numeric) %>%
+  summarise_all(fn) %>% ungroup()
+
+rescuer_count <- rescuer_count %>%
+  left_join(rescuer_data, by = "RescuerID")
+
+rm(rescuer_data);gc()
 
 train_test <- train_test %>%
   left_join(rescuer_count, by = "RescuerID")
@@ -135,18 +148,18 @@ breed_type_train_test <- model.matrix(~ BreedType-1, train_test)
 train_test_matrix <- cbind(train_test_num, train_test_type, breed_type_train_test) %>% as.matrix()
 
 
-# multiply all columns by each other, first adding 1 to each column before multiplying
-a <- train_test_matrix %>% data.frame()
-
-res <- cbind(a^2, do.call(cbind,combn(colnames(a), 2, 
-                                      FUN= function(x) list(a[x[1]] * a[x[2]]))))
-colnames(res)[-(seq_len(ncol(a)))] <-  combn(colnames(a), 2, 
-                                             FUN = paste, collapse=":")
-
-res <- as.matrix(res)
-
-# Join back to the full matrix for splitting and training
-train_test_matrix <- cbind(train_test_matrix, res)
+# # multiply all columns by each other, first adding 1 to each column before multiplying
+# a <- train_test_matrix %>% data.frame()
+# 
+# res <- cbind(a^2, do.call(cbind,combn(colnames(a), 2, 
+#                                       FUN= function(x) list(a[x[1]] * a[x[2]]))))
+# colnames(res)[-(seq_len(ncol(a)))] <-  combn(colnames(a), 2, 
+#                                              FUN = paste, collapse=":")
+# 
+# res <- as.matrix(res)
+# 
+# # Join back to the full matrix for splitting and training
+# train_test_matrix <- cbind(train_test_matrix, res)
 
 dim(train_test_matrix)
 
